@@ -1,0 +1,11 @@
+{
+  "authors": ["Bogdan Szabo"],
+  "copyright": "Copyright © 2024, Bogdan Szabo",
+  "description": "Server for the clock arduino project",
+  "license": "GPL-3.0-or-later",
+  "name": "clock",
+  "dependencies": {
+    "serial-port": "1.2.0",
+    "unit-threaded": "*"
+  }
+}
