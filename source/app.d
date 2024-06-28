@@ -6,14 +6,15 @@ import std.string;
 import core.thread;
 import serial.device;
 
-static immutable port = "/dev/cu.usbmodem1201";
+static immutable string port = "/dev/cu.usbmodem1301";
 static immutable double daySeconds = 24 * 3600 - 1;
 
 struct Connection {
   SerialPort port;
+  char[512] bufferForReading;
 
   this(string path) {
-    port = new SerialPort("/dev/cu.usbmodem1201", 2.seconds, 2.seconds);
+    port = new SerialPort(path, 2.seconds, 2.seconds);
     port.speed = BaudRate.BR_9600;
     port.parity = Parity.none;
   }
@@ -24,9 +25,27 @@ struct Connection {
 
   void send(ubyte value) {
     ubyte[] b = [value];
-
     port.write(b);
-    writeln(b);
+  }
+
+  void setPixel(int index, int r, int g, int b) {
+    send(3);
+    send(index);
+    send(r);
+    send(g);
+    send(b);
+  }
+
+  void showPixels() {
+    send(4);
+  }
+
+  string read() {
+    auto res = port.read(this.bufferForReading);
+
+    writeln("res ", res);
+
+    return this.bufferForReading[0..res].to!string;
   }
 
   void close() {
@@ -108,15 +127,36 @@ void main() {
 
   auto percentage = secondsToday / daySeconds;
 
+  connection.send(1);
   connection.send(0);
 
+  connection.read;
+
   foreach (int i; 0..nowByte) {
+    connection.send(1);
     connection.send(i);
-    Thread.sleep(10.msecs);
+    connection.read;
+
+    connection.send(2);
+    connection.send(i);
+    connection.read;
+
+    Thread.sleep(30.msecs);
+
+    foreach(j; 0..19) {
+      connection.setPixel(j, i, i, 0);
+      connection.read;
+    }
+
+    connection.showPixels();
+    connection.read;
   }
 
   while(true) {
+    connection.send(1);
     connection.send(nowByte);
+    connection.read.writeln();
+
     Thread.sleep(5.seconds);
   }
 }
