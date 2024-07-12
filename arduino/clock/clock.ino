@@ -1,11 +1,44 @@
 #include <Adafruit_NeoPixel.h>
 
 #define analogPin1     5   // potentiometer connected to analog pin 5
-#define analogPin2     10   // potentiometer connected to analog pin 6
+#define analogPin2     10  // potentiometer connected to analog pin 10
 #define pixelPin       11
 #define pixelCount     19
 
 Adafruit_NeoPixel pixels(pixelCount, pixelPin, NEO_GRB + NEO_KHZ800);
+
+struct Color {
+  uint8_t r;
+  uint8_t g;
+  uint8_t b;
+
+  uint32_t color() {
+    return pixels.Color(r, g, b);
+  }
+
+  uint32_t nextColor(Color* expected) {
+    this->r = this->nextColor(r, expected->r, 1);
+    this->g = this->nextColor(g, expected->g, 1);
+    this->b = this->nextColor(b, expected->b, 1);
+
+    return pixels.Color(r, g, b);
+  }
+
+  uint8_t nextColor(uint8_t current, uint8_t target, uint8_t step) {
+    if(current < target && current + step > current) {
+      return max(min(current + step, target), 0);
+    }
+
+    if(current > target && current - step < current) {
+      return min(max(current - step, target), 250);
+    }
+    
+    return current;
+  }
+};
+
+Color pixelColors[pixelCount];
+Color expectedColors[pixelCount];
 
 enum SerialAction {
   setMeter1 = 1,
@@ -16,6 +49,8 @@ enum SerialAction {
 };
 
 void setup() {
+  delay(2000);
+
   pinMode(analogPin1, OUTPUT);
   pinMode(analogPin2, OUTPUT);
   Serial.begin(9600);
@@ -30,7 +65,11 @@ void setup() {
   analogWrite(analogPin2, 255);
 
   for(int i=0; i<pixelCount; i++) {
-    pixels.setPixelColor(i, pixels.Color(20, 0, 0));
+    pixelColors[i].r = 20;
+    pixelColors[i].g = 0;
+    pixelColors[i].b = 0;
+
+    pixels.setPixelColor(i, pixelColors[i].color());
   }
 
   pixels.show();
@@ -38,7 +77,7 @@ void setup() {
 
 int readValue() {
   while (Serial.available() == 0) {
-    delay(30);
+    delay(5);
   }
 
   return Serial.read();
@@ -91,11 +130,11 @@ void loop() {
 
     case setPixel:
       int i = readValue();
-      int r = readValue();
-      int g = readValue();
-      int b = readValue();
 
-      pixels.setPixelColor(i, pixels.Color(r, g, b));
+      expectedColors[i].r = readValue();
+      expectedColors[i].g = readValue();
+      expectedColors[i].b = readValue();
+
       break;
 
     case renderPixels:
@@ -106,7 +145,26 @@ void loop() {
       break;
   }
 
-  if(action == unknownAction) {
-    delay(30);
+  if(action != unknownAction) {
+    Serial.print("o");
+    return;
   }
+
+  bool hasChange = false;
+  for(int i=0; i<pixelCount; i++) {
+    auto color = pixelColors[i].color();
+    auto nextColor = pixelColors[i].nextColor(&expectedColors[i]);
+
+    if(color != nextColor) {
+      hasChange = true;
+      pixels.setPixelColor(i, color);
+    }
+  }
+
+  if(hasChange) {
+    pixels.show();
+  }
+
+
+  delay(30);
 }

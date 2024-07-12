@@ -9,6 +9,12 @@ import serial.device;
 static immutable string port = "/dev/cu.usbmodem1301";
 static immutable double daySeconds = 24 * 3600 - 1;
 
+struct Color {
+  byte r;
+  byte g;
+  byte b;
+}
+
 struct Connection {
   SerialPort port;
   char[512] bufferForReading;
@@ -36,14 +42,16 @@ struct Connection {
     send(b);
   }
 
+  void setPixel(int index, Color color) {
+    setPixel(index, color.r, color.g, color.b);
+  }
+
   void showPixels() {
     send(4);
   }
 
   string read() {
     auto res = port.read(this.bufferForReading);
-
-    writeln("res ", res);
 
     return this.bufferForReading[0..res].to!string;
   }
@@ -132,6 +140,11 @@ void main() {
 
   connection.read;
 
+  foreach(j; 0..19) {
+    connection.setPixel(j, 100, 200, 0);
+    connection.read;
+  }
+
   foreach (int i; 0..nowByte) {
     connection.send(1);
     connection.send(i);
@@ -142,21 +155,24 @@ void main() {
     connection.read;
 
     Thread.sleep(30.msecs);
-
-    foreach(j; 0..19) {
-      connection.setPixel(j, i, i, 0);
-      connection.read;
-    }
-
-    connection.showPixels();
-    connection.read;
   }
+
+  int i = 0;
+
+  auto color1 = Color(cast(byte) 70, cast(byte) 50, cast(byte) 0);
+  auto color2 = Color(cast(byte) 100, cast(byte) 0, cast(byte) 20);
 
   while(true) {
     connection.send(1);
     connection.send(nowByte);
     connection.read.writeln();
 
+    foreach(j; 0..19) {
+      connection.setPixel(j, i % 2 ? color1 : color2);
+      connection.read;
+    }
+
+    i++;
     Thread.sleep(5.seconds);
   }
 }
