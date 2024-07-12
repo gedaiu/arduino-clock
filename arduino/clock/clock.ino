@@ -65,11 +65,15 @@ void setup() {
   analogWrite(analogPin2, 255);
 
   for(int i=0; i<pixelCount; i++) {
-    pixelColors[i].r = 20;
+    pixelColors[i].r = 0;
     pixelColors[i].g = 0;
     pixelColors[i].b = 0;
 
     pixels.setPixelColor(i, pixelColors[i].color());
+
+    expectedColors[i].r = 40;
+    expectedColors[i].g = 0;
+    expectedColors[i].b = 0;
   }
 
   pixels.show();
