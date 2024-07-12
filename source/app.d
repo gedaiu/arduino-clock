@@ -1,23 +1,27 @@
 import std.stdio;
-import std.datetime;
 import std.conv;
 import std.algorithm;
 import std.string;
+import std.file;
+import std.array;
 import core.thread;
 import serial.device;
 
-static immutable string port = "/dev/cu.usbmodem1301";
-static immutable double daySeconds = 24 * 3600 - 1;
+import clock.datetime;
+import clock.colors;
 
-struct Color {
-  byte r;
-  byte g;
-  byte b;
+
+string[] serialDevices() {
+  return dirEntries("/dev", SpanMode.shallow)
+    .map!(a => a.name)
+    .filter!(a => a.canFind("cu.usbmodem"))
+    .array;
 }
 
 struct Connection {
   SerialPort port;
   char[512] bufferForReading;
+  string lastMessage;
 
   this(string path) {
     port = new SerialPort(path, 2.seconds, 2.seconds);
@@ -34,26 +38,51 @@ struct Connection {
     port.write(b);
   }
 
+  void setMeter(int index, int value) {
+    this.send(index);
+    this.send(value);
+    this.lastMessage = this.read;
+  }
+
   void setPixel(int index, int r, int g, int b) {
     send(3);
     send(index);
     send(r);
     send(g);
     send(b);
+    this.lastMessage = this.read;
   }
 
   void setPixel(int index, Color color) {
     setPixel(index, color.r, color.g, color.b);
   }
 
+  void setPixelSpeed(int speed) {
+    this.send(5);
+    this.send(speed);
+    this.lastMessage = this.read;
+  }
+
+  void setLoopSpeed(int speed) {
+    this.send(6);
+    this.send(speed);
+    this.lastMessage = this.read;
+  }
+
   void showPixels() {
     send(4);
+
+    this.lastMessage = this.read;
   }
 
   string read() {
-    auto res = port.read(this.bufferForReading);
+    try {
+      auto res = port.read(this.bufferForReading);
 
-    return this.bufferForReading[0..res].to!string;
+      return this.bufferForReading[0..res].to!string;
+    } catch(Exception e) {
+      return "";
+    }
   }
 
   void close() {
@@ -61,116 +90,50 @@ struct Connection {
   }
 }
 
-ubyte nowByte() {
-  auto now = Clock.currTime;
-
-  return (now.dayPercentage * 255).to!ubyte;
-}
-
-ubyte bytePercentage(double percentage) {
-  if(percentage <= 0) {
-    return 0;
-  }
-
-  if(percentage >= 1) {
-    return 255;
-  }
-
-  return (percentage * 255).to!ubyte;
-}
-
-/// Returns 0 for a negative value
-unittest {
-  assert(bytePercentage(-1) == 0);
-}
-
-/// Returns 0 for a 0
-unittest {
-  assert(0.bytePercentage == 0);
-}
-
-/// Returns 25 for a 0.1
-unittest {
-  assert(bytePercentage(0.1) == 25);
-}
-
-/// Returns 255 for a 1
-unittest {
-  assert(bytePercentage(1) == 255);
-}
-
-/// Returns 255 for a 1.1
-unittest {
-  assert(bytePercentage(1.1) == 255);
-}
-
-/// Returns a value between 0 and 1 with the passed time as percentage of given time
-double dayPercentage(SysTime time) @safe nothrow {
-  double dayTimeSeconds = time.hour * 3600 + time.minute * 60 + time.second;
-
-  return dayTimeSeconds / daySeconds;
-}
-
-/// returns 0 at 00:00:00
-unittest {
-  assert(SysTime.fromISOExtString("2022-03-02T00:00:00").dayPercentage == 0);
-}
-
-/// returns 1 at 23:00:00
-unittest {
-  assert(SysTime.fromISOExtString("2022-03-02T23:59:59").dayPercentage == 1);
-}
-
-/// returns 0.5 at 12:00:00
-unittest {
-  import std.math;
-  assert(SysTime.fromISOExtString("2022-03-02T12:00:00").dayPercentage.isClose(0.5, 0.01));
-}
-
 void main() {
-  auto connection = Connection(port);
-  auto now = Clock.currTime;
-  double secondsToday = now.hour * 3600 + now.minute * 60 + now.second;
-  double daySeconds = 24 * 3600;
+  Connection connection;
 
-  auto percentage = secondsToday / daySeconds;
-
-  connection.send(1);
-  connection.send(0);
-
-  connection.read;
-
-  foreach(j; 0..19) {
-    connection.setPixel(j, 100, 200, 0);
-    connection.read;
+  foreach(port; serialDevices) {
+    writeln("connecting to: ", port);
+    connection = Connection(serialDevices[0]);
   }
 
-  foreach (int i; 0..nowByte) {
-    connection.send(1);
-    connection.send(i);
-    connection.read;
+  "connected.".writeln;
 
-    connection.send(2);
-    connection.send(i);
-    connection.read;
+  connection.setMeter(1, 0);
+  connection.setMeter(2, 0);
+  connection.setPixelSpeed(200);
+  connection.setLoopSpeed(1);
 
-    Thread.sleep(30.msecs);
+  auto meter1 = nowByte;
+  auto meter2 = weekByte;
+
+  foreach (int i; 0..max(nowByte, weekByte)) {
+    connection.setMeter(2, min(nowByte, i));
+    connection.setPixel(17, min(nowByte, i).toDayColor);
+    connection.setPixel(18, min(nowByte, i).toDayColor);
+
+    connection.setMeter(1, min(weekByte, i));
+
+    Thread.sleep(5.msecs);
   }
 
   int i = 0;
 
-  auto color1 = Color(cast(byte) 70, cast(byte) 50, cast(byte) 0);
-  auto color2 = Color(cast(byte) 100, cast(byte) 0, cast(byte) 20);
+  connection.setPixelSpeed(1);
+  connection.setLoopSpeed(30);
 
   while(true) {
-    connection.send(1);
-    connection.send(nowByte);
-    connection.read.writeln();
+    connection.setMeter(2, nowByte);
+    connection.setMeter(1, weekByte);
+    connection.lastMessage.writeln;
 
-    foreach(j; 0..19) {
-      connection.setPixel(j, i % 2 ? color1 : color2);
-      connection.read;
-    }
+    connection.setPixel(17, toDayColor(nowByte));
+    connection.setPixel(18, toDayColor(nowByte));
+
+    // foreach(j; 0..17) {
+    //   connection.setPixel(18, i % 2 ? color1 : color2);
+    // }
 
     i++;
     Thread.sleep(5.seconds);

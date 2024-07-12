@@ -7,6 +7,9 @@
 
 Adafruit_NeoPixel pixels(pixelCount, pixelPin, NEO_GRB + NEO_KHZ800);
 
+uint8_t pixelSpeed = 1;
+int loopSpeed = 10;
+
 struct Color {
   uint8_t r;
   uint8_t g;
@@ -17,9 +20,9 @@ struct Color {
   }
 
   uint32_t nextColor(Color* expected) {
-    this->r = this->nextColor(r, expected->r, 1);
-    this->g = this->nextColor(g, expected->g, 1);
-    this->b = this->nextColor(b, expected->b, 1);
+    this->r = this->nextColor(r, expected->r, pixelSpeed);
+    this->g = this->nextColor(g, expected->g, pixelSpeed);
+    this->b = this->nextColor(b, expected->b, pixelSpeed);
 
     return pixels.Color(r, g, b);
   }
@@ -45,6 +48,9 @@ enum SerialAction {
   setMeter2 = 2,
   setPixel = 3,
   renderPixels = 4,
+  setPixelSpeed = 5,
+  setLoopSpeed = 6,
+  hello = 10,
   unknownAction = 99
 };
 
@@ -107,6 +113,15 @@ SerialAction readAction() {
     case 4:
       return renderPixels;
 
+    case 5: 
+      return setPixelSpeed;
+
+    case 6: 
+      return setLoopSpeed;
+
+    case 10:
+      return hello;
+
     default:
       return unknownAction;
   }
@@ -145,6 +160,14 @@ void loop() {
       pixels.show();
       break;
 
+    case setPixelSpeed:
+      pixelSpeed = readValue();
+      break;
+
+    case setLoopSpeed:
+      loopSpeed = readValue();
+      break;
+
     default:
       break;
   }
@@ -169,6 +192,5 @@ void loop() {
     pixels.show();
   }
 
-
-  delay(30);
+  delay(loopSpeed);
 }
