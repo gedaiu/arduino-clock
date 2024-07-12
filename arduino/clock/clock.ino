@@ -9,6 +9,7 @@ Adafruit_NeoPixel pixels(pixelCount, pixelPin, NEO_GRB + NEO_KHZ800);
 
 uint8_t pixelSpeed = 1;
 int loopSpeed = 10;
+unsigned long lastTime;
 
 struct Color {
   uint8_t r;
@@ -54,35 +55,37 @@ enum SerialAction {
   unknownAction = 99
 };
 
-void setup() {
-  delay(2000);
-
-  pinMode(analogPin1, OUTPUT);
-  pinMode(analogPin2, OUTPUT);
-  Serial.begin(9600);
-  pixels.begin();
-
-  delay(1000);
-  Serial.println("Ready.");
-
-  pixels.clear();
-
+void setDefaults() {
   analogWrite(analogPin1, 255);
   analogWrite(analogPin2, 255);
 
   for(int i=0; i<pixelCount; i++) {
-    pixelColors[i].r = 0;
-    pixelColors[i].g = 0;
-    pixelColors[i].b = 0;
-
-    pixels.setPixelColor(i, pixelColors[i].color());
-
     expectedColors[i].r = 40;
     expectedColors[i].g = 0;
     expectedColors[i].b = 0;
   }
 
   pixels.show();
+}
+
+void setup() {
+  pinMode(analogPin1, OUTPUT);
+  pinMode(analogPin2, OUTPUT);
+  Serial.begin(9600);
+  pixels.begin();
+
+  delay(2000);
+  Serial.println("Ready.");
+  Serial.flush();
+
+  pixels.clear();
+  for(int i=0; i<pixelCount; i++) {
+    pixelColors[i].r = 0;
+    pixelColors[i].g = 0;
+    pixelColors[i].b = 0;
+  }
+  
+  setDefaults();
 }
 
 int readValue() {
@@ -128,6 +131,10 @@ SerialAction readAction() {
 }
 
 void loop() {
+  if(millis() - lastTime > 6000) {
+    setDefaults();
+  }
+
   SerialAction action = readAction();
 
   int value;
@@ -168,12 +175,24 @@ void loop() {
       loopSpeed = readValue();
       break;
 
+    case hello:
+      break;
+
     default:
       break;
   }
 
+  if(action == hello) {
+    Serial.print("waaazaa!");
+    Serial.flush();
+    return;
+  }
+
   if(action != unknownAction) {
+    lastTime = millis();
     Serial.print("o");
+    Serial.print(action);
+    Serial.flush();
     return;
   }
 

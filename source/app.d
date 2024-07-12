@@ -75,11 +75,16 @@ struct Connection {
     this.lastMessage = this.read;
   }
 
+  void sayHello() {
+    send(10);
+    this.lastMessage = this.read;
+  }
+
   string read() {
     try {
       auto res = port.read(this.bufferForReading);
 
-      return this.bufferForReading[0..res].to!string;
+      return this.bufferForReading[0..res].to!string.strip;
     } catch(Exception e) {
       return "";
     }
@@ -90,15 +95,29 @@ struct Connection {
   }
 }
 
-void main() {
-  Connection connection;
-
+auto getConnection() {
   foreach(port; serialDevices) {
     writeln("connecting to: ", port);
-    connection = Connection(serialDevices[0]);
+    auto connection = Connection(port);
+    connection.read.writeln;
+
+    writeln("hello?");
+    connection.sayHello;
+    connection.lastMessage.writeln;
+
+    if(connection.lastMessage == "waaazaa!") {
+      "connected.".writeln;
+      return connection;
+    }
+
+    connection.close;
   }
 
-  "connected.".writeln;
+  throw new Exception("No device found!");
+}
+
+void main() {
+  auto connection = getConnection;
 
   connection.setMeter(1, 0);
   connection.setMeter(2, 0);
@@ -130,10 +149,6 @@ void main() {
 
     connection.setPixel(17, toDayColor(nowByte));
     connection.setPixel(18, toDayColor(nowByte));
-
-    // foreach(j; 0..17) {
-    //   connection.setPixel(18, i % 2 ? color1 : color2);
-    // }
 
     i++;
     Thread.sleep(5.seconds);
