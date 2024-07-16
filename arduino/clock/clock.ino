@@ -36,7 +36,7 @@ struct Color {
     if(current > target && current - step < current) {
       return min(max(current - step, target), 250);
     }
-    
+
     return current;
   }
 };
@@ -68,26 +68,6 @@ void setDefaults() {
   pixels.show();
 }
 
-void setup() {
-  pinMode(analogPin1, OUTPUT);
-  pinMode(analogPin2, OUTPUT);
-  Serial.begin(9600);
-  pixels.begin();
-
-  delay(2000);
-  Serial.println("Ready.");
-  Serial.flush();
-
-  pixels.clear();
-  for(int i=0; i<pixelCount; i++) {
-    pixelColors[i].r = 0;
-    pixelColors[i].g = 0;
-    pixelColors[i].b = 0;
-  }
-  
-  setDefaults();
-}
-
 int readValue() {
   while (Serial.available() == 0) {
     delay(5);
@@ -116,10 +96,10 @@ SerialAction readAction() {
     case 4:
       return renderPixels;
 
-    case 5: 
+    case 5:
       return setPixelSpeed;
 
-    case 6: 
+    case 6:
       return setLoopSpeed;
 
     case 10:
@@ -128,6 +108,26 @@ SerialAction readAction() {
     default:
       return unknownAction;
   }
+}
+
+void setup() {
+  pinMode(analogPin1, OUTPUT);
+  pinMode(analogPin2, OUTPUT);
+  Serial.begin(9600);
+  pixels.begin();
+
+  delay(2000);
+  Serial.println("Ready.");
+  Serial.flush();
+
+  pixels.clear();
+  for(int i=0; i<pixelCount; i++) {
+    pixelColors[i].r = 0;
+    pixelColors[i].g = 0;
+    pixelColors[i].b = 0;
+  }
+
+  setDefaults();
 }
 
 void loop() {
