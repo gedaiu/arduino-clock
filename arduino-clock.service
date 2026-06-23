@@ -1,0 +1,10 @@
+[Unit]
+Description=Arduino clock server.
+
+[Service]
+ExecStart=/home/gedaiu/workspace/arduino-clock
+Nice=-20
+User=root
+
+[Install]
+WantedBy=multi-user.target

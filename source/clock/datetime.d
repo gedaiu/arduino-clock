@@ -116,3 +116,35 @@ unittest {
 unittest {
   assert(SysTime.fromISOExtString("2022-03-02T12:00:00").dayPercentage.isClose(0.5, 0.01));
 }
+
+/// Returns the 12-hour chime count (1 to 12) for the passed time
+int chimeCount(SysTime time) @safe nothrow {
+  auto hour = time.hour % 12;
+
+  return hour == 0 ? 12 : hour;
+}
+
+/// chimes 12 times at 00:00:00
+unittest {
+  assert(SysTime.fromISOExtString("2024-07-08T00:00:00").chimeCount == 12);
+}
+
+/// chimes 1 time at 01:00:00
+unittest {
+  assert(SysTime.fromISOExtString("2024-07-08T01:00:00").chimeCount == 1);
+}
+
+/// chimes 12 times at 12:00:00
+unittest {
+  assert(SysTime.fromISOExtString("2024-07-08T12:00:00").chimeCount == 12);
+}
+
+/// chimes 1 time at 13:00:00
+unittest {
+  assert(SysTime.fromISOExtString("2024-07-08T13:00:00").chimeCount == 1);
+}
+
+/// chimes 11 times at 23:00:00
+unittest {
+  assert(SysTime.fromISOExtString("2024-07-08T23:00:00").chimeCount == 11);
+}

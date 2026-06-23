@@ -15,3 +15,6 @@ clock-test-*
 *.obj
 *.lst
 .DS_Store
+
+# vendored arduino-cli (flash.sh)
+/arduino/bin/

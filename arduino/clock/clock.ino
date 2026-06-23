@@ -4,6 +4,7 @@
 #define analogPin2     10  // potentiometer connected to analog pin 10
 #define pixelPin       11
 #define pixelCount     19
+#define piezoPin       8
 
 Adafruit_NeoPixel pixels(pixelCount, pixelPin, NEO_GRB + NEO_KHZ800);
 
@@ -51,6 +52,7 @@ enum SerialAction {
   renderPixels = 4,
   setPixelSpeed = 5,
   setLoopSpeed = 6,
+  playTone = 7,
   hello = 10,
   unknownAction = 99
 };
@@ -74,6 +76,13 @@ int readValue() {
   }
 
   return Serial.read();
+}
+
+int readWord() {
+  int high = readValue();
+  int low = readValue();
+
+  return (high << 8) | low;
 }
 
 SerialAction readAction() {
@@ -101,6 +110,9 @@ SerialAction readAction() {
 
     case 6:
       return setLoopSpeed;
+
+    case 7:
+      return playTone;
 
     case 10:
       return hello;
@@ -174,6 +186,13 @@ void loop() {
     case setLoopSpeed:
       loopSpeed = readValue();
       break;
+
+    case playTone: {
+      int frequency = readWord();
+      int duration = readWord();
+      tone(piezoPin, frequency, duration);
+      break;
+    }
 
     case hello:
       break;
