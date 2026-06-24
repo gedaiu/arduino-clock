@@ -5,11 +5,11 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKETCH_DIR="$ROOT/arduino/clock"
+SKETCH_DIR="${SKETCH:-$ROOT/arduino/clock}"
 TOOLS_DIR="$ROOT/arduino/bin"
 ARDUINO_CLI="$TOOLS_DIR/arduino-cli"
 
-FQBN="${FQBN:-arduino:avr:uno}"
+FQBN="${FQBN:-}"          # empty => auto-detect from the attached board
 PORT="${PORT:-}"
 MODE="${1:-upload}"
 
@@ -41,14 +41,18 @@ ensure_lib() {
   "$ARDUINO_CLI" lib install "Adafruit NeoPixel"
 }
 
-detect_port() {
-  [[ -n "$PORT" ]] && return
-  PORT="$("$ARDUINO_CLI" board list --format json 2>/dev/null \
-    | grep -oE '/dev/tty(ACM|USB)[0-9]+' | head -n1 || true)"
-  [[ -z "$PORT" ]] && PORT="$(ls /dev/ttyACM* /dev/ttyUSB* 2>/dev/null | head -n1 || true)"
+# Ask the board what it actually is, so we never upload with the wrong core again.
+detect_board() {
+  local listing
+  listing="$("$ARDUINO_CLI" board list 2>/dev/null | grep -E '/dev/tty(ACM|USB)' | head -n1 || true)"
+  [[ -z "$PORT" ]] && PORT="$(echo "$listing" | grep -oE '/dev/tty(ACM|USB)[0-9]+' | head -n1 || true)"
+  [[ -z "$FQBN" ]] && FQBN="$(echo "$listing" | grep -oE 'arduino:avr:[a-z0-9_]+' | head -n1 || true)"
+  [[ -z "$FQBN" ]] && FQBN="arduino:avr:uno"
+  return 0
 }
 
 resolve_cli
+detect_board
 ensure_core
 ensure_lib
 
@@ -57,14 +61,15 @@ echo ">> compiling $SKETCH_DIR for $FQBN"
 
 [[ "$MODE" == "compile" ]] && { echo ">> compile-only: done"; exit 0; }
 
-detect_port
 [[ -n "$PORT" ]] || die "no board found — plug it in or run with PORT=/dev/ttyACM0"
 
-# The D server hogs the serial port; uploading over it will fail with "busy".
+# The D server holds the serial port exclusively; the upload fails "busy" unless we free it.
 if pgrep -x clock >/dev/null 2>&1; then
-  echo ">> warning: the 'clock' server is running and may be holding $PORT — stop it first if the upload fails"
+  echo ">> stopping the running 'clock' server so it releases $PORT"
+  pkill -x clock || true
+  sleep 1
 fi
 
-echo ">> uploading to $PORT"
+echo ">> uploading to $PORT ($FQBN)"
 "$ARDUINO_CLI" upload -p "$PORT" --fqbn "$FQBN" "$SKETCH_DIR"
-echo ">> done. shiny."
+echo ">> done. shiny. restart the server when ready:  ./clock"

@@ -5,6 +5,7 @@ import std.conv;
 import std.math;
 import std.stdio;
 
+static immutable double hourSeconds = 3600 - 1;
 static immutable double daySeconds = 24 * 3600 - 1;
 static immutable double weekSeconds = daySeconds * 7;
 
@@ -12,6 +13,12 @@ ubyte nowByte() {
   auto now = Clock.currTime;
 
   return (now.dayPercentage * 255).to!ubyte;
+}
+
+ubyte minuteByte() {
+  auto now = Clock.currTime;
+
+  return (now.hourPercentage * 255).to!ubyte;
 }
 
 ubyte weekByte() {
@@ -115,6 +122,28 @@ unittest {
 /// returns 0.5 at 12:00:00
 unittest {
   assert(SysTime.fromISOExtString("2022-03-02T12:00:00").dayPercentage.isClose(0.5, 0.01));
+}
+
+/// Returns a value between 0 and 1 with the passed time as percentage of the current hour
+double hourPercentage(SysTime time) @safe nothrow {
+  double hourTimeSeconds = time.minute * 60 + time.second;
+
+  return hourTimeSeconds / hourSeconds;
+}
+
+/// returns 0 at 00:00:00
+unittest {
+  assert(SysTime.fromISOExtString("2022-03-02T10:00:00").hourPercentage == 0);
+}
+
+/// returns 1 at minute 59 second 59
+unittest {
+  assert(SysTime.fromISOExtString("2022-03-02T10:59:59").hourPercentage == 1);
+}
+
+/// returns 0.5 at minute 30
+unittest {
+  assert(SysTime.fromISOExtString("2022-03-02T10:30:00").hourPercentage.isClose(0.5, 0.01));
 }
 
 /// Returns the 12-hour chime count (1 to 12) for the passed time

@@ -76,9 +76,30 @@ struct Connection {
   }
 
   void playTone(int frequency, int duration) {
-    send(7);
-    sendWord(frequency);
-    sendWord(duration);
+    ubyte[] cmd = [
+      cast(ubyte) 7,
+      cast(ubyte)((frequency >> 8) & 0xFF),
+      cast(ubyte)(frequency & 0xFF),
+      cast(ubyte)((duration >> 8) & 0xFF),
+      cast(ubyte)(duration & 0xFF)
+    ];
+    port.write(cmd);
+    this.lastMessage = this.read;
+  }
+
+  void playJingle() {
+    send(20);
+    this.lastMessage = this.read;
+  }
+
+  void playChime(int count) {
+    send(21);
+    send(count);
+    this.lastMessage = this.read;
+  }
+
+  void playTick() {
+    send(22);
     this.lastMessage = this.read;
   }
 
@@ -91,6 +112,7 @@ struct Connection {
   void sayHello() {
     send(10);
     this.lastMessage = this.read;
+    writeln("hello: ", this.lastMessage);
   }
 
   string read() {
@@ -112,15 +134,20 @@ auto getConnection() {
   foreach(port; serialDevices) {
     writeln("connecting to: ", port);
     auto connection = Connection(port);
-    connection.read.writeln;
 
-    writeln("hello?");
-    connection.sayHello;
-    connection.lastMessage.writeln;
+    // hello is always our first command. Retry it: a server that died mid-command can
+    // leave the firmware blocked mid-read, swallowing the first hello bytes as stale
+    // args — so drain leftovers and greet again until it answers cleanly.
+    foreach(_; 0 .. 5) {
+      connection.read;
+      writeln("hello?");
+      connection.sayHello;
+      connection.lastMessage.writeln;
 
-    if(connection.lastMessage == "waaazaa!") {
-      "connected.".writeln;
-      return connection;
+      if(connection.lastMessage == "waaazaa!") {
+        "connected.".writeln;
+        return connection;
+      }
     }
 
     connection.close;
@@ -129,57 +156,42 @@ auto getConnection() {
   throw new Exception("No device found!");
 }
 
-void playNote(ref Connection connection, int frequency, int duration) {
-  connection.playTone(frequency, duration);
-  Thread.sleep(duration.msecs);
-}
-
-void playConnectJingle(ref Connection connection) {
-  connection.playNote(523, 120);
-  connection.playNote(659, 120);
-  connection.playNote(784, 120);
-  connection.playNote(1047, 220);
-}
-
-void chime(ref Connection connection, SysTime time) {
-  foreach(_; 0 .. chimeCount(time)) {
-    connection.playNote(330, 300);
-    Thread.sleep(150.msecs);
-  }
+void playStartup(ref Connection connection) {
+  auto count = chimeCount(Clock.currTime);
+  connection.playChime(count);
 }
 
 void main() {
   auto connection = getConnection;
 
-  connection.playConnectJingle;
 
   connection.setMeter(1, 0);
   connection.setMeter(2, 0);
   connection.setPixelSpeed(200);
   connection.setLoopSpeed(1);
 
-  auto meter1 = nowByte;
-  auto meter2 = weekByte;
-
-  foreach (int i; 0..max(nowByte, weekByte)) {
+  foreach (int i; 0..max(nowByte, minuteByte)) {
     connection.setMeter(2, min(nowByte, i));
     connection.setPixel(17, min(nowByte, i).toDayColor);
     connection.setPixel(18, min(nowByte, i).toDayColor);
 
-    connection.setMeter(1, min(weekByte, i));
+    connection.setMeter(1, min(minuteByte, i));
 
     Thread.sleep(5.msecs);
   }
 
   int i = 0;
   auto lastChimeHour = Clock.currTime.hour;
+  auto lastTickMinute = Clock.currTime.minute;
 
   connection.setPixelSpeed(1);
   connection.setLoopSpeed(30);
 
+  connection.playStartup;
+
   while(true) {
     connection.setMeter(2, nowByte);
-    connection.setMeter(1, weekByte);
+    connection.setMeter(1, minuteByte);
     connection.lastMessage.writeln;
 
     connection.setPixel(17, toDayColor(nowByte));
@@ -187,8 +199,14 @@ void main() {
 
     auto currentTime = Clock.currTime;
     if(currentTime.hour != lastChimeHour) {
-      connection.chime(currentTime);
+      connection.playChime(chimeCount(currentTime));
       lastChimeHour = currentTime.hour;
+    }
+
+    auto minute = currentTime.minute;
+    if((minute == 0 || minute == 31) && minute != lastTickMinute) {
+      connection.playTick();
+      lastTickMinute = minute;
     }
 
     i++;

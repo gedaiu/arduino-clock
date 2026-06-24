@@ -1,7 +1,6 @@
 module clock.colors;
 
 import std.stdio;
-import std.math;
 import std.conv;
 
 struct Color {
@@ -26,19 +25,12 @@ struct Color {
   }
 
   Color transitionTo(Color target, double step) {
-    auto easeStep = easeOutCubic(step);
-
     auto r = r + (target.r - r) * step;
     auto g = g + (target.g - g) * step;
     auto b = b + (target.b - b) * step;
 
     return Color(r, g, b);
   }
-}
-
-///
-double easeOutCubic(double x) {
-  return 1 - pow(1 - x, 3);
 }
 
 /// get the percentage inside a interval
@@ -57,28 +49,70 @@ unittest {
   assert(percentage(100, 0, 100) == 1);
 }
 
-///
+/// Returns the color at position t (0 to 1) along an evenly spaced list of stops
+Color gradient(Color[] stops, double t) {
+  if(t <= 0) {
+    return stops[0];
+  }
+
+  if(t >= 1) {
+    return stops[$ - 1];
+  }
+
+  auto scaled = t * (stops.length - 1);
+  auto index = scaled.to!int;
+  auto local = scaled - index;
+
+  return stops[index].transitionTo(stops[index + 1], local);
+}
+
+/// returns the first stop at 0
+unittest {
+  auto stops = [Color(0, 0, 0), Color(100, 100, 100)];
+  assert(gradient(stops, 0) == Color(0, 0, 0));
+}
+
+/// returns the last stop at 1
+unittest {
+  auto stops = [Color(0, 0, 0), Color(100, 100, 100)];
+  assert(gradient(stops, 1) == Color(100, 100, 100));
+}
+
+/// returns the midpoint at 0.5
+unittest {
+  auto stops = [Color(0, 0, 0), Color(100, 100, 100)];
+  assert(gradient(stops, 0.5) == Color(50, 50, 50));
+}
+
+/// lands on the middle stop at 0.5 of a three stop gradient
+unittest {
+  auto stops = [Color(0, 0, 0), Color(100, 100, 100), Color(200, 200, 200)];
+  assert(gradient(stops, 0.5) == Color(100, 100, 100));
+}
+
+/// Maps a day byte (0 to 255) to a smooth red to yellow to cyan to purple gradient
 Color toDayColor(int value) {
-  auto color1 = Color(200, 30, 0);
-  auto color2 = Color(200, 250, 0);
-  auto color3 = Color(100, 250, 200);
-  auto color4 = Color(150, 100, 200);
+  auto stops = [
+    Color(200, 30, 0),
+    Color(200, 250, 0),
+    Color(100, 250, 200),
+    Color(150, 100, 200)
+  ];
 
-  if(value < 90) {
-    return color1.transitionTo(color2, percentage(value, 0, 150));
-  }
+  return gradient(stops, percentage(value, 0, 255));
+}
 
-  if(value >= 90 && value <= 140) {
-    return color2.transitionTo(color3, percentage(value, 90, 190));
-  }
+/// starts on the first color at 0
+unittest {
+  assert(toDayColor(0) == Color(200, 30, 0));
+}
 
-  if(value > 140 && value <= 160) {
-    return color3.transitionTo(color4, percentage(value, 140, 220));
-  }
+/// ends on the last color at 255
+unittest {
+  assert(toDayColor(255) == Color(150, 100, 200));
+}
 
-  if(value > 160 && value <= 255) {
-    return color3.transitionTo(color4, percentage(value, 160, 255));
-  }
-
-  return Color(0, 0, 0);
+/// actually reaches a bright yellow a third of the way through the day
+unittest {
+  assert(toDayColor(85).g > 240);
 }
